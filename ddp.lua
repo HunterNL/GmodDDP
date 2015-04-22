@@ -5,9 +5,15 @@ print("DDP loaded")
 
 
 
-if not DDP then
+if not
+ DDP then
 	DDP = {}
 	DDP.__index = DDP
+	setmetatable(DDP,{
+		__call = function(self,...)
+			return DDP.Create(...)
+		end
+	})
 end
 
 DDP.uid = 1
@@ -23,6 +29,9 @@ function DDP.Create(url,port)
 
 	self.collections = {}
 	self.collectionEventQueue = {}
+	self.messageQueue = {}
+    self.callbacks = {}
+
 	self.session = ""
 
 	self.socket:SetCallbackReceive(function(data)
@@ -45,7 +54,12 @@ function DDP:OnWSOpen() --fires when websocket is connected
 end
 
 function DDP:OnConnected() --fires when ddp is connected
-
+	local queue = self.messageQueue
+	if(#queue>0) then
+		for k,v in ipairs(queue) do
+			self.socket:Send(v)
+		end
+	end
 end
 
 function DDP:AddEventToQueue(event)
@@ -126,6 +140,11 @@ function DDP:OnMessage(message)
 		return
 	end
 
+    if(eventType =="result") then
+        self:OnResult(event.id,event)
+        return
+    end
+
 	if(event.server_id) then
 		return --Ignore this eventType, is ment for outdated meteor clients
 	end
@@ -163,13 +182,21 @@ function DDP:Close()
 	self.socket:Close()
 end
 
-function DDP:Write(data)
+function DDP:QueueMessage(data)
+	table.insert(self.messageQueue,data)
+end
+
+function DDP:Write(data,dontqueue)
 	if (type(data) == "table") then
 		data = util.TableToJSON(data)
 	end
 
-	print("Outdoing message"..data)
-	self.socket:Send(data)
+	print("Outgoing message"..data)
+	if(self.state=="OPEN" or dontqueue) then
+		self.socket:Send(data)
+	elseif(self.state=="CONNECTING") then
+		self:QueueMessage(data)
+	end
 end
 
 function DDP:PrintCollections()
@@ -183,10 +210,19 @@ local function arrayToJSON(array)
 		rstring = "[]"
 	else
 		rstring= "["
-		for k,v in ipairs(params) do
-			rstring = rstring.."\""..v.."\""
+		for k,v in ipairs(array) do
+            if(type(v)=="table") then
+                if (table.IsSequential(v)) then
+                    v = arrayToJSON(v)
+                else
+                    v = util.TableToJSON(v)
+                end
+                rstring = rstring..v
+            else
+                rstring = rstring.."\""..v.."\""
+			end
 
-			if(k!=#params) then
+			if(k!=#array) then
 				rstring = rstring..","
 			end
 		end
@@ -197,8 +233,23 @@ local function arrayToJSON(array)
 end
 
 function DDP:Call(name,params,callback) --todo implement callback
-	local msg = "{\"msg\":\"method\",\"method\":\""..name.."\",\"id\":\""..self:getUid().."\", \"params\" :"..arrayToJSON(params).."}"
+    local id = tostring(self:getUid())
+	local msg = "{\"msg\":\"method\",\"method\":\""..name.."\",\"id\":\""..id.."\", \"params\" :"..arrayToJSON(params).."}"
+    if(isfunction(callback)) then
+        self.callbacks[id] = callback
+    end
 	self:Write(msg)
+end
+
+function DDP:OnResult(id,data)
+    print("On result..."..id)
+    local func = self.callbacks[id]
+    if(isfunction(func)) then
+        print("calling func")
+        PrintTable(data)
+        func(data.error,data.result)
+    end
+    self.callbacks[id]=nil
 end
 
 function DDP:Subscribe(collectionName,params)
@@ -225,5 +276,5 @@ function DDP:Connect()
 	end
 
 	local msg = "{\"msg\":\"connect\",\"version\":\"1\",\"support\":[\"1\"]"..session.."}" --Manual JSON because lua cannot into arrays
-	self:Write(msg)
+	self:Write(msg,true)
 end
