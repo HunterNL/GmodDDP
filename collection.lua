@@ -27,11 +27,11 @@ function DDPCollection:Add(id,fields)
 end
 
 function DDPCollection:Change(id,fields,cleared)
-	self.data[data.id]=data.fields
+	self.data[id]=fields
 end
 
 function DDPCollection:Remove(id)
-	self.data[data.id]=nil
+	self.data[id]=nil
 end
 
 function DDPCollection:OnPopulated()

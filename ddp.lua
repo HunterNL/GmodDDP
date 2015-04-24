@@ -14,9 +14,11 @@ if not
 			return DDP.Create(...)
 		end
 	})
+
 end
 
 DDP.uid = 1
+DDP.verbose = false
 
 function DDP.Create(url,port)
 	local self = setmetatable({},DDP)
@@ -95,7 +97,7 @@ function DDP:LinkCollection(collection)
 end
 
 function DDP:OnMessage(message)
-	print("Incoming message "..message)
+	if(DDP.verbose) then print("Incoming message "..message) end
 	local event = util.JSONToTable(message)
 	local collectionName = event.collection
 	local collection = self.collections[collectionName]
@@ -145,6 +147,11 @@ function DDP:OnMessage(message)
         return
     end
 
+    if(eventType=="updated") then
+        --TODO handle this event type
+        return
+    end
+
 	if(event.server_id) then
 		return --Ignore this eventType, is ment for outdated meteor clients
 	end
@@ -170,7 +177,7 @@ end
 function DDP:DataRemoved(event)
 	local collection = self.collections[event.collection]
 	if(collection) then
-		collection:remove(event.id)
+		collection:Remove(event.id)
 	end
 end
 
@@ -191,7 +198,7 @@ function DDP:Write(data,dontqueue)
 		data = util.TableToJSON(data)
 	end
 
-	print("Outgoing message"..data)
+	if(DDP.verbose) then print("Outgoing message"..data) end
 	if(self.state=="OPEN" or dontqueue) then
 		self.socket:Send(data)
 	elseif(self.state=="CONNECTING") then
@@ -242,11 +249,8 @@ function DDP:Call(name,params,callback) --todo implement callback
 end
 
 function DDP:OnResult(id,data)
-    print("On result..."..id)
     local func = self.callbacks[id]
     if(isfunction(func)) then
-        print("calling func")
-        PrintTable(data)
         func(data.error,data.result)
     end
     self.callbacks[id]=nil
