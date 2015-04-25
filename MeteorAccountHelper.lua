@@ -16,13 +16,26 @@ if not MAH then
 end
 
 --Constructor
-function MAH.Create(ddp)
+function MAH.Create(ddp,dontmakeusercollection)
 	if(getmetatable(ddp)!=DDP) then
 		error("MeteorAccountHelper needs a DPP client as constructor argument")
 	end
 
 	local self = setmetatable({},MAH)
 	self.ddp = ddp
+
+    self.users = self.ddp.collections.users
+    print("self users",self.users)
+    if(self.users==nil and dontmakeusercollection==nil and dontmakeusercollection) then
+        self.users = DDPCollection(self.ddp,"users")
+    end
+
+    self.users:Observe({
+        OnAdd = function(id,fields) self:OnCollectionChange(id,fields) end,
+        OnChange = function(id,fields,olddoc) self:OnCollectionChange(id,fields) end,
+        OnRemove = function(id) self:OnCollectionChange(id,nil) end --empty user field
+    })
+
 	self.userId = nil
 	self.user = nil
 
@@ -36,7 +49,7 @@ function MAH:LoginAsGuest()
 	end)
 end
 
---Takes username and unencrypted password, tried logging into Meteor
+--Takes username and unencrypted password, tries logging into Meteor
 function MAH:LoginWithPassword(username,password)
 	self.ddp:Call("login",{{ --Nested table is intentional, all of this is 1 argument to login method
 		user = {username = username},
@@ -63,11 +76,34 @@ function MAH:OnLogin(err,result)
 	self.token = result.token
 	--Todo handle token expiration
 
-	print("Logged in as user "..self.userId)
+    if(self.users!=nil) then
+        self.user=self.users.data[self.userId]
+        self:OnUserDataChange(self.user)
+    end
+
+	print("Logged in as user "..self.userId.." with following user data")
+    PrintTable(self.user)
 
 	if(isfunction(self.onLoginCallback)) then
 		self.onLoginCallback(self.user)
 	end
+end
+
+function MAH:SetUserDataCallback(func)
+    self.onUserDataChangeCallback = func
+end
+
+function MAH:OnCollectionChange(id,fields)
+    if(id==self.userId) then
+        self.user=fields
+    end
+    self:OnUserDataChange()
+end
+
+function MAH:OnUserDataChange()
+    if(isfunction(self.onUserDataChangeCallback)) then
+        self.onUserDataChangeCallback(self.user)
+    end
 end
 
 --Callback for guest account creation
