@@ -89,6 +89,10 @@ function MAH:OnLogin(err,result)
 	end
 end
 
+function MAH:SetLoginCallback(func)
+    self.onLoginCallback = func
+end
+
 function MAH:SetUserDataCallback(func)
     self.onUserDataChangeCallback = func
 end

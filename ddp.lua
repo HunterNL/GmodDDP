@@ -32,7 +32,10 @@ function DDP.Create(url,port)
 	self.collections = {}
 	self.collectionEventQueue = {}
 	self.messageQueue = {}
-    self.callbacks = {}
+
+    self.callbacksQuick = {}
+    self.callbacksSlow = {}
+    self.callbacksReady = {}
 
 	self.session = ""
 
@@ -148,7 +151,12 @@ function DDP:OnMessage(message)
     end
 
     if(eventType=="updated") then
-        --TODO handle this event type
+        self:OnUpdated(event.methods)
+        return
+    end
+
+    if(eventType=="ready") then
+        self:OnSubReady(event.subs)
         return
     end
 
@@ -239,26 +247,57 @@ local function arrayToJSON(array)
 	return rstring
 end
 
-function DDP:Call(name,params,callback) --todo implement callback
+function DDP:Call(name,params,callbackquick,callbackslow)
     local id = tostring(self:getUid())
 	local msg = "{\"msg\":\"method\",\"method\":\""..name.."\",\"id\":\""..id.."\", \"params\" :"..arrayToJSON(params).."}"
-    if(isfunction(callback)) then
-        self.callbacks[id] = callback
+
+    if(isfunction(callbackquick)) then
+        self.callbacksQuick[id] = callbackquick
     end
+
+    if(isfunction(callbackslow)) then
+        self.callbacksSlow[id] = callbackslow
+    end
+
+
 	self:Write(msg)
 end
 
 function DDP:OnResult(id,data)
-    local func = self.callbacks[id]
+    local func = self.callbacksQuick[id]
     if(isfunction(func)) then
         func(data.error,data.result)
     end
-    self.callbacks[id]=nil
+    self.callbacksQuick[id]=nil
 end
 
-function DDP:Subscribe(collectionName,params)
-	local subid = self:getUid()
-	local msg = "{\"msg\":\"sub\",\"id\":\""..self:getUid().."\",\"name\":\""..collectionName.."\",\"params\":"..arrayToJSON(params).."}"
+function DDP:OnUpdated(idArray)
+    for k,v in pairs(idArray) do
+        local cb = self.callbacksSlow[v]
+        if(isfunction(cb)) then
+            cb()
+            self.callbacksSlow[v]=nil
+        end
+    end
+end
+
+function DDP:OnSubReady(subs)
+    for k,v in pairs(subs) do
+        local cb = self.callbacksReady[v]
+        if(isfunction(cb)) then
+            cb()
+            self.callbacksReady[v]=nil
+        end
+    end
+end
+
+function DDP:Subscribe(collectionName,params,callback)
+	local subid = tostring(self:getUid())
+	local msg = "{\"msg\":\"sub\",\"id\":\""..subid.."\",\"name\":\""..collectionName.."\",\"params\":"..arrayToJSON(params).."}"
+    print("Subscribing, callback is ",(callback or "NONE"))
+    self.callbacksReady[subid]=callback
+    print(self.callbacksReady[subid],subid)
+
 	self:Write(msg)
 	return subid
 end

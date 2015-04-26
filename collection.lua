@@ -37,7 +37,7 @@ function DDPCollection:Add(id,fields)
 end
 
 function DDPCollection:Change(id,fields,cleared)
-	print("data changed",id,fields)
+	print("data changed",id,fields,self.name)
 	local oldDoc = self.data[id]
 
 	self.data[id]=fields
