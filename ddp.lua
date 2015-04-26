@@ -294,9 +294,7 @@ end
 function DDP:Subscribe(collectionName,params,callback)
 	local subid = tostring(self:getUid())
 	local msg = "{\"msg\":\"sub\",\"id\":\""..subid.."\",\"name\":\""..collectionName.."\",\"params\":"..arrayToJSON(params).."}"
-    print("Subscribing, callback is ",(callback or "NONE"))
     self.callbacksReady[subid]=callback
-    print(self.callbacksReady[subid],subid)
 
 	self:Write(msg)
 	return subid

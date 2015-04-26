@@ -37,14 +37,29 @@ function DDPCollection:Add(id,fields)
 end
 
 function DDPCollection:Change(id,fields,cleared)
-	print("data changed",id,fields,self.name)
-	local oldDoc = self.data[id]
+	local oldDoc = {}
+	local doc = self.data[id]
 
-	self.data[id]=fields
+	--Copy old document to table so we can return it
+	for k,v in pairs(doc) do
+		oldDoc[k]=v
+	end
+
+	--Insert/update new fields in the document
+	for k,v in pairs(fields) do
+		doc[k]=v
+	end
+
+	--Clear keys given in the cleared array
+	if(cleared!=nil) then
+		for k,v in pairs(cleared) do
+			doc[v]=nil
+		end
+	end
 
 	for k,v in pairs(self.listeners) do
 		if(isfunction(v.OnChange)) then
-			v.OnChange(id,fields,olddoc)
+			v.OnChange(id,doc,oldDoc)
 		end
 	end
 end
