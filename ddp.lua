@@ -25,8 +25,8 @@ function DDP.Create(url,port)
 
 	self.messageHandlers = {}
 
-	self.socket = WS(url.."/websocket",port)
-	self.socket:Connect()
+	self.socket = WS.Client(url.."/websocket",port)
+
 	self.state="CONNECTING"
 
 	self.collections = {}
@@ -39,17 +39,22 @@ function DDP.Create(url,port)
 
 	self.session = ""
 
-	self.socket:SetCallbackReceive(function(data)
+	self.socket:on("message",function(data)
+        print("ddp message")
 		self:OnMessage(data)
 	end)
 
-	self.socket:SetCallbackConnected(function()
+	self.socket:on("open",function()
+        print("ddp open")
 		self:OnWSOpen()
 	end)
 
-	self.socket:SetCallbackClose(function(byclient)
-		self:OnWSClose(byclient)
+	self.socket:on("close",function()
+        print("ddp close")
+		self:OnWSClose()
 	end)
+
+    self.socket:Connect()
 
 	return self
 end

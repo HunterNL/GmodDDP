@@ -25,19 +25,13 @@ function MAH.Create(ddp,dontmakeusercollection)
 	self.ddp = ddp
 
     self.users = self.ddp.collections.users
-    print("self users",self.users)
-    if(self.users==nil and dontmakeusercollection==nil and dontmakeusercollection) then
+    print("MAH - self users",self.users)
+    if(self.users==nil and dontmakeusercollection==nil and not dontmakeusercollection) then
         self.users = DDPCollection(self.ddp,"users")
     end
 
-    self.users:Observe({
-        OnAdd = function(id,fields) self:OnCollectionChange(id,fields) end,
-        OnChange = function(id,fields,olddoc) self:OnCollectionChange(id,fields) end,
-        OnRemove = function(id) self:OnCollectionChange(id,nil) end --empty user field
-    })
-
 	self.userId = nil
-	self.user = nil
+	self.user = {}
 
 	return self
 end
@@ -70,19 +64,23 @@ function MAH:OnLogin(err,result)
 		error("Error loggin in")
 	end
 
-
-
 	self.userId = result.id
 	self.token = result.token
 	--Todo handle token expiration
 
     if(self.users!=nil) then
-        self.user=self.users.data[self.userId]
-        self:OnUserDataChange(self.user)
+        print(self.users.data[self.userId],self.user)
+        table.CopyFromTo(self.users.data[self.userId],self.user)
     end
 
-	print("Logged in as user "..self.userId.." with following user data")
-    PrintTable(self.user)
+    self.users:ObserveId(self.userId,{
+        OnAdd = function(id,doc) self:OnCollectionChange(id,doc) end,
+        OnChange = function(id,newdoc,olddoc) self:OnCollectionChange(id,newdoc,olddoc) end,
+        OnRemove = function(id) self:OnCollectionChange(id,nil) end --empty user field
+    })
+
+	print("Logged in as user "..self.userId)--.." with following user data")
+    --PrintTable(self.user)
 
 	if(isfunction(self.onLoginCallback)) then
 		self.onLoginCallback(self.user)
@@ -97,16 +95,20 @@ function MAH:SetUserDataCallback(func)
     self.onUserDataChangeCallback = func
 end
 
-function MAH:OnCollectionChange(id,fields)
-    if(id==self.userId) then
-        self.user=fields
-    end
-    self:OnUserDataChange()
-end
+function MAH:OnCollectionChange(id,newdoc,olddoc)
+    --[[print("MAH - ")
+        PrintTable(newdoc)
+        print("split")
+        PrintTable(olddoc)
+    print("end mah")
+    table.CopyFromTo(newdoc,self.user)
+    ]]
 
-function MAH:OnUserDataChange()
+    table.CopyFromTo(newdoc,self.user)
+    --PrintTable(self.user)
+
     if(isfunction(self.onUserDataChangeCallback)) then
-        self.onUserDataChangeCallback(self.user)
+        self.onUserDataChangeCallback(newdoc,olddoc)
     end
 end
 

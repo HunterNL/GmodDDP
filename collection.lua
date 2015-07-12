@@ -17,6 +17,7 @@ function DDPCollection.Create(ddp,name)
 	self.populated = false
 	self.data = {}
 	self.listeners = {}
+	self.Idlisteners = {}
 
 	self.ddp:LinkCollection(self)
 
@@ -26,12 +27,30 @@ end
 function DDPCollection:Observe(callbacks)
 	table.insert(self.listeners,callbacks)
 end
+
+function DDPCollection:ObserveId(id,callbacks)
+	local tbl = self.Idlisteners[id]
+	if(tbl == nil) then
+		self.Idlisteners[id]={}
+	end
+
+	table.insert(self.Idlisteners[id],callbacks)
+end
+
 function DDPCollection:Add(id,fields)
 	self.data[id]=fields
 
 	for k,v in pairs(self.listeners) do
 		if(isfunction(v.OnAdd)) then
 			v.OnAdd(id,fields)
+		end
+	end
+
+	if(self.Idlisteners[id]!=nil) then
+		for k,v in pairs(self.Idlisteners[id]) do
+			if(isfunction(v.OnAdd)) then
+				v.OnAdd(id,fields)
+			end
 		end
 	end
 end
@@ -57,9 +76,27 @@ function DDPCollection:Change(id,fields,cleared)
 		end
 	end
 
+	--print("PreL2")
+	--PrintTable(doc)
+	--print("PostL2")
+
 	for k,v in pairs(self.listeners) do
 		if(isfunction(v.OnChange)) then
 			v.OnChange(id,doc,oldDoc)
+		end
+	end
+
+	--print("PreListen")
+	--PrintTable(doc)
+	--print("PostListen")
+
+	if(self.Idlisteners[id]!=nil) then
+		for k,v in pairs(self.Idlisteners[id]) do
+			if(isfunction(v.OnChange)) then
+				--print("COllection onchange",id)
+				--PrintTable(doc)
+				v.OnChange(id,doc,oldDoc)
+			end
 		end
 	end
 end
@@ -73,8 +110,16 @@ function DDPCollection:Remove(id)
 			v.OnRemove(id,oldDoc)
 		end
 	end
+
+	if(self.Idlisteners[id]!=nil) then
+		for k,v in pairs(self.Idlisteners[id]) do
+			if(isfunction(v.OnRemove)) then
+				v.OnRemove(id)
+			end
+		end
+	end
 end
 
 function DDPCollection:OnPopulated()
-	print("DB POPULATED")
+	--print("DB POPULATED")
 end
